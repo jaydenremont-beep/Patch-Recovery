@@ -4,12 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       RECOVERY_URL:
-        description: 'RECOVERY URL'
+        description: 'Recovery image URL (.img or .img.lz4)'
         required: true
-        default: 'https://transfer.sh/(RECOMMENDED)'
-
-env:
-  RECOVERY_URL: https://oshi.at/Rpjg
 
 jobs:
   build:
@@ -24,12 +20,18 @@ jobs:
         sudo apt update
         sudo apt install -y git wget lz4 tar openssl python3 python3-pip
 
-    - name: Fetch image from URL
+    - name: Fetch recovery image
       run: |
-        echo "Current directory:"
-        pwd
-        ls
-        wget "${{ github.event.inputs.RECOVERY_URL }}" -O recovery.img
+        echo "Downloading recovery image..."
+        wget "${{ github.event.inputs.RECOVERY_URL }}" -O recovery.img.lz4 || true
+        # If the URL ends with .lz4, decompress it
+        if [[ "${{ github.event.inputs.RECOVERY_URL }}" == *.lz4 ]]; then
+          echo "Decompressing recovery.img.lz4..."
+          lz4 -d recovery.img.lz4 recovery.img
+        else
+          mv recovery.img.lz4 recovery.img
+        fi
+        ls -lh recovery.img
 
     - name: Patch Process-1
       run: |
@@ -55,9 +57,8 @@ jobs:
         md5sum -t fastbootd-recovery.tar >> fastbootd-recovery.tar
         mv fastbootd-recovery.tar fastbootd-recovery.tar.md5
 
-    - name: Upload Recovery
+    - name: Upload Patched Recovery
       uses: actions/upload-artifact@v4
       with:
         path: output/*.md5
         name: Patched-Recovery
-
